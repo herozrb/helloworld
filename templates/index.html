@@ -51,6 +51,37 @@
             background-color: #f8d7da;
             border-radius: 4px;
         }
+        .progress-container {
+            width: 100%;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            width: 0;
+            height: 20px;
+            background-color: #4CAF50;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+        
+        .progress-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-size: 12px;
+            line-height: 20px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .processing-status {
+            margin: 10px 0;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -89,47 +120,80 @@
                 return;
             }
             
-            resultDiv.innerHTML = '<div class="stats">正在处理，请稍候...</div>';
+            // 显示进度条和状态
+            resultDiv.innerHTML = `
+                <div class="stats">
+                    <div class="processing-status">正在上传文件...</div>
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-text">0%</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            const progressBar = resultDiv.querySelector('.progress-bar');
+            const progressText = resultDiv.querySelector('.progress-text');
+            const statusText = resultDiv.querySelector('.processing-status');
             
             formData.append('file', fileInput.files[0]);
             formData.append('rules', rulesInput.value);
             
-            fetch('/upload', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const stats = data.stats;
-                    const keyword = rulesInput.value;
-                    resultDiv.innerHTML = `
-                        <div class="stats">
-                            <p>
-                                文件共有 <span class="highlight">${stats.total_rows}</span> 条数据，
-                                其中包含"<span class="highlight">${keyword}</span>"的数据有 
-                                <span class="highlight">${stats.matched_count}</span> 条，
-                                占比 <span class="highlight">${stats.percentage}%</span>
-                            </p>
-                        </div>
-                        ${stats.sample_records.length > 0 ? `
-                            <div class="records">
-                                <h3>匹配记录示例：</h3>
-                                ${stats.sample_records.map((record, index) => `
-                                    <div class="record-item">
-                                        ${index + 1}、${record}
-                                    </div>
-                                `).join('')}
-                            </div>
-                        ` : ''}
-                    `;
-                } else {
-                    resultDiv.innerHTML = `<div class="error">错误: ${data.error}</div>`;
+            // 使用 XMLHttpRequest 来获取上传进度
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    progressBar.style.width = percentComplete + '%';
+                    progressText.textContent = Math.round(percentComplete) + '%';
                 }
-            })
-            .catch(error => {
-                resultDiv.innerHTML = `<div class="error">上传过程中发生错误: ${error.message}</div>`;
-            });
+            };
+            
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    // 文件上传完成，显示处理状态
+                    statusText.textContent = '文件已上传，正在处理数据...';
+                    progressBar.style.width = '100%';
+                    progressText.textContent = '处理中...';
+                    
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.success) {
+                        const stats = data.stats;
+                        resultDiv.innerHTML = `
+                            <div class="stats">
+                                <p>
+                                    文件共有 <span class="highlight">${stats.total_rows}</span> 条数据，
+                                    其中包含"<span class="highlight">${rulesInput.value}</span>"的数据有 
+                                    <span class="highlight">${stats.matched_count}</span> 条，
+                                    占比 <span class="highlight">${stats.percentage}%</span>
+                                </p>
+                            </div>
+                            ${stats.sample_records.length > 0 ? `
+                                <div class="records">
+                                    <h3>匹配记录示例：</h3>
+                                    ${stats.sample_records.map((record, index) => `
+                                        <div class="record-item">
+                                            ${index + 1}、${record}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                        `;
+                    } else {
+                        resultDiv.innerHTML = `<div class="error">错误: ${data.error}</div>`;
+                    }
+                } else {
+                    resultDiv.innerHTML = `<div class="error">上传失败: ${xhr.statusText}</div>`;
+                }
+            };
+            
+            xhr.onerror = function() {
+                resultDiv.innerHTML = `<div class="error">上传过程中发生错误</div>`;
+            };
+            
+            xhr.open('POST', '/upload', true);
+            xhr.send(formData);
         };
     </script>
 </body>
