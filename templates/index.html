@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>通话记录标注系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 60px;
+        }
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .record-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 5px;
+        }
+        .highlight {
+            color: #1a73e8;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            background-color: #f8d7da;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>通话记录标注系统</h1>
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="file">选择文件 (支持 CSV, XLSX, XLS):</label><br>
+                <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls">
+            </div>
+            <div class="form-group">
+                <label for="rules">标注规则配置:</label><br>
+                <textarea id="rules" name="rules" placeholder="请输入关键词，例如：诉前调查"></textarea>
+            </div>
+            <button type="submit" class="button">上传并分析</button>
+        </form>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('file');
+            const rulesInput = document.getElementById('rules');
+            const resultDiv = document.getElementById('result');
+            
+            if (!fileInput.files[0]) {
+                resultDiv.innerHTML = '<div class="error">请选择文件</div>';
+                return;
+            }
+            
+            if (!rulesInput.value.trim()) {
+                resultDiv.innerHTML = '<div class="error">请输入关键词</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="stats">正在处理，请稍候...</div>';
+            
+            formData.append('file', fileInput.files[0]);
+            formData.append('rules', rulesInput.value);
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const stats = data.stats;
+                    const keyword = rulesInput.value;
+                    resultDiv.innerHTML = `
+                        <div class="stats">
+                            <p>
+                                文件共有 <span class="highlight">${stats.total_rows}</span> 条数据，
+                                其中包含"<span class="highlight">${keyword}</span>"的数据有 
+                                <span class="highlight">${stats.matched_count}</span> 条，
+                                占比 <span class="highlight">${stats.percentage}%</span>
+                            </p>
+                        </div>
+                        ${stats.sample_records.length > 0 ? `
+                            <div class="records">
+                                <h3>匹配记录示例：</h3>
+                                ${stats.sample_records.map((record, index) => `
+                                    <div class="record-item">
+                                        ${index + 1}、${record}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">错误: ${data.error}</div>`;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<div class="error">上传过程中发生错误: ${error.message}</div>`;
+            });
+        };
+    </script>
+</body>
+</html> 
