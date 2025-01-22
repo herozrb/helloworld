@@ -4,6 +4,8 @@ import os
 import traceback
 import json  # 添加json模块来处理文本内容
 from datetime import datetime
+import requests
+import sseclient
 
 app = Flask(__name__, 
     template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates'))
@@ -23,104 +25,61 @@ def allowed_file(filename):
 def index():
     return render_template('index.html')
 
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    print("\n=== 开始处理新的上传请求 ===")  # 新增
-    try:
-        if 'file' not in request.files:
-            print("没有文件被上传")
-            return jsonify({'error': '没有选择文件'}), 400
-        
-        file = request.files['file']
-        print(f"接收到文件: {file.filename}")  # 新增
-        
-        if file.filename == '':
-            print("文件名为空")
-            return jsonify({'error': '没有选择文件'}), 400
-        
-        if file and allowed_file(file.filename):
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-            file.save(filepath)
-            print(f"文件已保存到: {filepath}")
-            
-            try:
-                print("开始读取文件")  # 新增
-                # 读取文件内容
-                if filepath.endswith('.csv'):
-                    df = pd.read_csv(filepath, encoding='utf-8')
-                else:
-                    df = pd.read_excel(filepath)
-                
-                print(f"文件读取成功，数据行数: {len(df)}")
-                print(f"列名: {df.columns.tolist()}")
-                
-                # 检查数据框是否为空
-                if df.empty:
-                    print("数据框为空")  # 调试信息
-                    return jsonify({'error': '文件内容为空'}), 400
-                
-                # 检查是否存在必要的列
-                content_column = 'context_around_keyword'
-                if content_column not in df.columns:
-                    print(f"缺少列: {content_column}")  # 调试信息
-                    return jsonify({'error': f'文件中缺少"{content_column}"列'}), 400
-                
-                # 获取规则配置
-                keyword = request.form.get('rules', '').strip()
-                print(f"搜索关键词: {keyword}")  # 调试信息
-                
-                if not keyword:
-                    print("关键词为空")  # 调试信息
-                    return jsonify({'error': '请输入标注规则关键词'}), 400
-                
-                # 应用标注规则并获取统计结果
-                stats = apply_rules(df, keyword)
-                print(f"处理结果: {stats}")  # 调试信息
-                
-                # 在返回结果前打印
-                print("=== 处理完成，返回结果 ===")  # 新增
-                return jsonify({
-                    'success': True,
-                    'stats': stats
-                })
-            except Exception as e:
-                print(f"文件处理错误: {str(e)}")
-                print(traceback.format_exc())
-                return jsonify({'error': f'文件处理错误: {str(e)}'}), 400
-            finally:
-                pass
-        
-        print("不支持的文件类型")  # 调试信息
-        return jsonify({'error': '不支持的文件类型'}), 400
+def call_model(text, prompt):
+    """调用模型进行分析"""
+    messages = [
+        {
+            "role": "system",
+            "content": "你是一个专业的文本分析助手，需要帮助分析文本并给出明确的判断结果。请只返回'是'或'否'。"
+        },
+        {
+            "role": "user",
+            "content": f"请分析以下文本，{prompt}\n\n文本内容：{text}\n\n请只回答'是'或'否'。"
+        }
+    ]
     
-    except Exception as e:
-        print(f"上传过程错误: {str(e)}")
-        print(traceback.format_exc())
-        return jsonify({'error': f'上传过程错误: {str(e)}'}), 500
-
-def clean_text(text):
-    """清理文本内容，提取实际对话内容"""
+    headers = {
+        'Authorization': '1729335449824772151',
+        'Content-Type': 'application/json'
+    }
+    
+    data = {
+        "model": "LongCat-Large-32K-Chat",
+        "messages": messages,
+        "stream": True
+    }
+    
     try:
-        # 尝试提取text字段的内容
-        if '"text":"' in text:
-            # 提取所有text字段的内容并合并
-            texts = []
-            parts = text.split('"text":"')
-            for part in parts[1:]:  # 跳过第一部分
-                end = part.find('"')
-                if end != -1:
-                    texts.append(part[:end])
-            return ' '.join(texts)
-        return text
-    except:
-        return text
+        response = requests.post(
+            'https://aigc.sankuai.com/v1/openai/native/chat/completions',
+            headers=headers,
+            json=data,
+            stream=True
+        )
+        
+        client = sseclient.SSEClient(response)
+        full_response = ""
+        for event in client.events():
+            if event.data != "[DONE]":
+                chunk = json.loads(event.data)
+                if 'choices' in chunk and chunk['choices']:
+                    content = chunk['choices'][0].get('delta', {}).get('content', '')
+                    full_response += content
+        
+        # 清理结果，只保留"是"或"否"
+        result = '是' if '是' in full_response else '否'
+        return result
+    except Exception as e:
+        print(f"模型调用错误: {str(e)}")
+        return None
 
 def apply_rules(df, keyword):
+    """使用关键词匹配分析"""
     try:
         content_column = 'context_around_keyword'
         
         # 清理文本内容
-        df['cleaned_content'] = df[content_column].astype(str).apply(clean_text)
+        df['cleaned_content'] = df[content_column].astype(str)
         
         # 总行数
         total_rows = len(df)
@@ -143,8 +102,79 @@ def apply_rules(df, keyword):
         }
     except Exception as e:
         print(f"规则应用错误: {str(e)}")
-        print(traceback.format_exc())
         raise
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': '没有选择文件'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': '没有选择文件'}), 400
+        
+        if file and allowed_file(file.filename):
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            file.save(filepath)
+            
+            try:
+                if filepath.endswith('.csv'):
+                    df = pd.read_csv(filepath, encoding='utf-8')
+                else:
+                    df = pd.read_excel(filepath)
+                
+                if df.empty:
+                    return jsonify({'error': '文件内容为空'}), 400
+                
+                content_column = 'context_around_keyword'
+                if content_column not in df.columns:
+                    return jsonify({'error': f'文件中缺少"{content_column}"列'}), 400
+                
+                analysis_type = request.form.get('analysisType', 'keyword')
+                rules = request.form.get('rules', '').strip()
+                
+                if not rules:
+                    return jsonify({'error': '请输入规则'}), 400
+                
+                if analysis_type == 'keyword':
+                    stats = apply_rules(df, rules)
+                else:  # model
+                    stats = apply_model_analysis(df, rules)
+                
+                return jsonify({
+                    'success': True,
+                    'stats': stats
+                })
+            except Exception as e:
+                return jsonify({'error': f'文件处理错误: {str(e)}'}), 400
+            
+        return jsonify({'error': '不支持的文件类型'}), 400
+    
+    except Exception as e:
+        return jsonify({'error': f'上传过程错误: {str(e)}'}), 500
+
+def apply_model_analysis(df, prompt):
+    """使用模型分析文本"""
+    total_rows = len(df)
+    matched_count = 0
+    sample_records = []
+    
+    for text in df['context_around_keyword'].astype(str):
+        result = call_model(text, prompt)
+        if result == '是':
+            matched_count += 1
+            if len(sample_records) < 10:  # 只保存前10个匹配的记录
+                sample_records.append(text)
+    
+    percentage = (matched_count / total_rows * 100) if total_rows > 0 else 0
+    
+    return {
+        'total_rows': total_rows,
+        'matched_count': matched_count,
+        'percentage': round(percentage, 2),
+        'sample_records': sample_records
+    }
 
 @app.route('/export', methods=['POST'])
 def export_results():

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>通话记录标注系统</title>
+    <title>通话记录标注</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -82,6 +82,39 @@
             margin: 10px 0;
             color: #666;
         }
+
+        .radio-group {
+            margin: 10px 0;
+        }
+        
+        .radio-label {
+            display: inline-block;
+            margin-right: 20px;
+            cursor: pointer;
+        }
+        
+        .radio-label input[type="radio"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #4CAF50;
+            margin-right: 5px;
+            position: relative;
+            top: 3px;
+        }
+        
+        .radio-label input[type="radio"]:checked {
+            background-color: #4CAF50;
+            border: 2px solid #4CAF50;
+            box-shadow: inset 0 0 0 3px white;
+        }
+        
+        .radio-label:hover input[type="radio"] {
+            border-color: #45a049;
+        }
     </style>
 </head>
 <body>
@@ -93,8 +126,19 @@
                 <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls">
             </div>
             <div class="form-group">
+                <label>分析方式:</label><br>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="analysisType" value="keyword" checked> 关键词匹配
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="analysisType" value="model"> 模型分析
+                    </label>
+                </div>
+            </div>
+            <div class="form-group">
                 <label for="rules">标注规则配置:</label><br>
-                <textarea id="rules" name="rules" placeholder="请输入关键词，例如：诉前调查"></textarea>
+                <textarea id="rules" name="rules" placeholder="关键词模式：请输入关键词，例如：诉前调查&#10;模型模式：请输入标注要求，例如：判断文本是否包含投诉内容"></textarea>
             </div>
             <button type="submit" class="button">上传并分析</button>
         </form>
@@ -138,6 +182,7 @@
             
             formData.append('file', fileInput.files[0]);
             formData.append('rules', rulesInput.value);
+            formData.append('analysisType', document.querySelector('input[name="analysisType"]:checked').value);
             
             // 使用 XMLHttpRequest 来获取上传进度
             const xhr = new XMLHttpRequest();
