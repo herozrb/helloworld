@@ -7,14 +7,19 @@ from datetime import datetime
 import requests
 import sseclient
 from tqdm import tqdm  # 导入 tqdm 库
+import base64  # 添加这行导入
+
+# 在文件开头，获取项目根目录的绝对路径
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, 
-    template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates'))
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+    template_folder=os.path.join(BASE_DIR, 'templates'))
+app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'uploads')
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB限制
 
-# 确保上传目录存在
+# 确保上传目录和导出目录都存在
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'exports'), exist_ok=True)
 
 # 允许的文件类型
 ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
@@ -26,19 +31,23 @@ def allowed_file(filename):
 def index():
     return render_template('index.html')
 
+def generate_basic_auth_key(username):
+    """生成Basic认证的密钥"""
+    auth_str = f"{username}:"  # 不需要密码，但保留冒号
+    auth_bytes = auth_str.encode('utf-8')
+    encoded_auth = base64.b64encode(auth_bytes)
+    return f"Basic {encoded_auth.decode('utf-8')}"
+
 def call_model(text, prompt):
-    """调用第三方 API 进行分析"""
+    """调用模型进行分析"""
     try:
-        # 格式化 prompt
-        formatted_prompt = f"请分析以下文本，{prompt}\n\n文本内容：{text}\n\n请只回答'是'或'否'。"
-        
         headers = {
-            'Authorization': '1729335449824772151',
+            'Authorization': f"Bearer sk-usoulvohbnxowonlipznpyefpcafbcitbqvymonrderhirjh",
             'Content-Type': 'application/json'
         }
         
         data = {
-            "model": "gpt-4o-2024-08-06",
+            "model": "Qwen/Qwen2.5-32B-Instruct",
             "messages": [
                 {
                     "role": "system",
@@ -46,31 +55,38 @@ def call_model(text, prompt):
                 },
                 {
                     "role": "user",
-                    "content": formatted_prompt
+                    "content": f"请分析以下文本，{prompt}\n\n文本内容：{text}\n\n请只回答'是'或'否'。"
                 }
             ],
-            "stream": True
+            "stream": False,
+            "max_tokens": 512,
+            "stop": ["null"],
+            "temperature": 0.7,
+            "top_p": 0.7,
+            "top_k": 50,
+            "frequency_penalty": 0.5,
+            "n": 1,
+            "response_format": {"type": "text"}
         }
         
         response = requests.post(
-            'https://aigc.sankuai.com/v1/openai/native/chat/completions',
+            'https://api.siliconflow.cn/v1/chat/completions',
             headers=headers,
-            json=data,
-            stream=True
+            json=data
         )
         
-        client = sseclient.SSEClient(response)
-        full_response = ""
-        for event in client.events():
-            if event.data != "[DONE]":
-                chunk = json.loads(event.data)
-                if 'choices' in chunk and chunk['choices']:
-                    content = chunk['choices'][0].get('delta', {}).get('content', '')
-                    full_response += content
-        
-        # 清理结果，只保留"是"或"否"
-        result = '是' if '是' in full_response else '否'
-        return result
+        if response.status_code == 200:
+            result = response.json()
+            print(f"API Response: {result}")  # 调试信息
+            if 'choices' in result and result['choices']:
+                message = result['choices'][0].get('message', {})
+                if message and 'content' in message:
+                    return message['content'].strip()
+            print(f"Invalid response format: {result}")
+            return None
+        else:
+            print(f"模型调用错误: {response.status_code} - {response.text}")
+            return None
     except Exception as e:
         print(f"模型调用错误: {str(e)}")
         return None
@@ -99,6 +115,106 @@ def apply_model_analysis(df, prompt):
         'percentage': round(percentage, 2),
         'sample_records': sample_records
     }
+
+def process_data_with_model(text, prompt):
+    """使用模型处理单个数据"""
+    try:
+        headers = {
+            'Authorization': f"Bearer sk-usoulvohbnxowonlipznpyefpcafbcitbqvymonrderhirjh",
+            'Content-Type': 'application/json'
+        }
+        
+        data = {
+            "model": "Qwen/Qwen2.5-32B-Instruct",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "你是一个专业的数据处理助手，需要按照用户的要求处理文本。"
+                },
+                {
+                    "role": "user",
+                    "content": f"请按照以下要求处理文本：{prompt}\n\n文本内容：{text}"
+                }
+            ],
+            "stream": False,
+            "max_tokens": 512,
+            "stop": ["null"],
+            "temperature": 0.7,
+            "top_p": 0.7,
+            "top_k": 50,
+            "frequency_penalty": 0.5,
+            "n": 1,
+            "response_format": {"type": "text"}
+        }
+        
+        response = requests.post(
+            'https://api.siliconflow.cn/v1/chat/completions',
+            headers=headers,
+            json=data
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"API Response: {result}")  # 调试信息
+            
+            # 检查返回结构
+            if 'choices' in result and result['choices']:
+                message = result['choices'][0].get('message', {})
+                if message and 'content' in message:
+                    return message['content'].strip()
+            
+            print(f"Invalid response format: {result}")
+            return None
+        else:
+            print(f"模型调用错误: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"模型调用错误: {str(e)}")
+        return None
+
+def process_dataframe(df, rules):
+    """处理整个数据框"""
+    try:
+        # 获取所有列名
+        columns = df.columns.tolist()
+        
+        # 为每列创建新的处理后的列
+        processed_df = pd.DataFrame()  # 创建新的数据框
+        
+        for col in columns:
+            # 复制原始列
+            processed_df[col] = df[col]
+            new_col_name = f"{col}_processed"
+            processed_df[new_col_name] = None
+            
+            # 使用 tqdm 显示处理进度
+            with tqdm(total=len(df), desc=f"处理 {col} 列", unit="行") as pbar:
+                for idx, value in df[col].astype(str).items():
+                    processed_value = process_data_with_model(value, rules)
+                    if processed_value is not None:  # 只在处理成功时更新值
+                        processed_df.at[idx, new_col_name] = processed_value
+                    pbar.update(1)
+        
+        # 生成输出文件名
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        export_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'exports')
+        os.makedirs(export_dir, exist_ok=True)  # 确保导出目录存在
+        output_file = os.path.join(export_dir, f'processed_{timestamp}.xlsx')
+        
+        # 保存处理后的数据
+        processed_df.to_excel(output_file, index=False)
+        
+        return {
+            'success': True,
+            'message': '数据处理完成',
+            'file': os.path.basename(output_file)
+        }
+    except Exception as e:
+        print(f"数据处理错误: {str(e)}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -135,8 +251,18 @@ def upload_file():
                 
                 if analysis_type == 'keyword':
                     stats = apply_rules(df, rules)
-                else:  # model
+                elif analysis_type == 'model':
                     stats = apply_model_analysis(df, rules)
+                else:  # process
+                    result = process_dataframe(df, rules)
+                    if result['success']:
+                        return jsonify({
+                            'success': True,
+                            'message': result['message'],
+                            'download_url': f"/download/{result['file']}"
+                        })
+                    else:
+                        return jsonify({'error': result['error']}), 400
                 
                 return jsonify({
                     'success': True,
@@ -225,8 +351,13 @@ def export_results():
 def download_file(filename):
     try:
         export_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'exports')
+        file_path = os.path.join(export_dir, filename)
+        
+        if not os.path.exists(file_path):
+            return jsonify({'error': f'文件不存在: {filename}'}), 404
+            
         return send_file(
-            os.path.join(export_dir, filename),
+            file_path,
             as_attachment=True,
             download_name=filename
         )

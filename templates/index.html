@@ -134,11 +134,14 @@
                     <label class="radio-label">
                         <input type="radio" name="analysisType" value="model"> 模型分析
                     </label>
+                    <label class="radio-label">
+                        <input type="radio" name="analysisType" value="process"> 数据处理
+                    </label>
                 </div>
             </div>
             <div class="form-group">
                 <label for="rules">关键词/提示词规则配置:</label><br>
-                <textarea id="rules" name="rules" placeholder="关键词模式：请输入关键词，例如：诉前调查&#10;模型模式：请输入标注要求，例如：判断文本是否包含投诉内容"></textarea>
+                <textarea id="rules" name="rules" placeholder="关键词模式：请输入关键词，例如：诉前调查&#10;模型模式：请输入标注要求，例如：判断文本是否包含投诉内容&#10;数据处理：请输入处理规则，例如：把这一列的内容总结为三个字"></textarea>
             </div>
             <button type="submit" class="button">上传并分析</button>
         </form>
@@ -197,34 +200,40 @@
             
             xhr.onload = function() {
                 if (xhr.status === 200) {
-                    // 文件上传完成，显示处理状态
-                    statusText.textContent = '文件已上传，正在处理数据...';
-                    progressBar.style.width = '100%';
-                    progressText.textContent = '处理中...';
-                    
                     const data = JSON.parse(xhr.responseText);
                     if (data.success) {
-                        const stats = data.stats;
-                        resultDiv.innerHTML = `
-                            <div class="stats">
-                                <p>
-                                    文件共有 <span class="highlight">${stats.total_rows}</span> 条数据，
-                                    其中包含"<span class="highlight">${rulesInput.value}</span>"的数据有 
-                                    <span class="highlight">${stats.matched_count}</span> 条，
-                                    占比 <span class="highlight">${stats.percentage}%</span>
-                                </p>
-                            </div>
-                            ${stats.sample_records.length > 0 ? `
-                                <div class="records">
-                                    <h3>匹配记录示例：</h3>
-                                    ${stats.sample_records.map((record, index) => `
-                                        <div class="record-item">
-                                            ${index + 1}、${record}
-                                        </div>
-                                    `).join('')}
+                        if (data.download_url) {
+                            // 数据处理模式
+                            resultDiv.innerHTML = `
+                                <div class="stats">
+                                    <p>${data.message}</p>
+                                    <a href="${data.download_url}" class="button">下载处理后的文件</a>
                                 </div>
-                            ` : ''}
-                        `;
+                            `;
+                        } else {
+                            // 原有的分析模式处理逻辑
+                            const stats = data.stats;
+                            resultDiv.innerHTML = `
+                                <div class="stats">
+                                    <p>
+                                        文件共有 <span class="highlight">${stats.total_rows}</span> 条数据，
+                                        其中包含"<span class="highlight">${rulesInput.value}</span>"的数据有 
+                                        <span class="highlight">${stats.matched_count}</span> 条，
+                                        占比 <span class="highlight">${stats.percentage}%</span>
+                                    </p>
+                                </div>
+                                ${stats.sample_records.length > 0 ? `
+                                    <div class="records">
+                                        <h3>匹配记录示例：</h3>
+                                        ${stats.sample_records.map((record, index) => `
+                                            <div class="record-item">
+                                                ${index + 1}、${record}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
+                            `;
+                        }
                     } else {
                         resultDiv.innerHTML = `<div class="error">错误: ${data.error}</div>`;
                     }
