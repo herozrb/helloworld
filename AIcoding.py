@@ -2,10 +2,11 @@ from flask import Flask, render_template, request, jsonify, send_file
 import pandas as pd
 import os
 import traceback
-import json  # 添加json模块来处理文本内容
+import json
 from datetime import datetime
 import requests
 import sseclient
+from tqdm import tqdm  # 导入 tqdm 库
 
 app = Flask(__name__, 
     template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates'))
@@ -26,30 +27,31 @@ def index():
     return render_template('index.html')
 
 def call_model(text, prompt):
-    """调用模型进行分析"""
-    messages = [
-        {
-            "role": "system",
-            "content": "你是一个专业的文本分析助手，需要帮助分析文本并给出明确的判断结果。请只返回'是'或'否'。"
-        },
-        {
-            "role": "user",
-            "content": f"请分析以下文本，{prompt}\n\n文本内容：{text}\n\n请只回答'是'或'否'。"
-        }
-    ]
-    
-    headers = {
-        'Authorization': '1729335449824772151',
-        'Content-Type': 'application/json'
-    }
-    
-    data = {
-        "model": "LongCat-Large-32K-Chat",
-        "messages": messages,
-        "stream": True
-    }
-    
+    """调用第三方 API 进行分析"""
     try:
+        # 格式化 prompt
+        formatted_prompt = f"请分析以下文本，{prompt}\n\n文本内容：{text}\n\n请只回答'是'或'否'。"
+        
+        headers = {
+            'Authorization': '1729335449824772151',
+            'Content-Type': 'application/json'
+        }
+        
+        data = {
+            "model": "gpt-4o-2024-08-06",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "你是一个专业的文本分析助手，需要帮助分析文本并给出明确的判断结果。请只返回'是'或'否'。"
+                },
+                {
+                    "role": "user",
+                    "content": formatted_prompt
+                }
+            ],
+            "stream": True
+        }
+        
         response = requests.post(
             'https://aigc.sankuai.com/v1/openai/native/chat/completions',
             headers=headers,
@@ -73,36 +75,30 @@ def call_model(text, prompt):
         print(f"模型调用错误: {str(e)}")
         return None
 
-def apply_rules(df, keyword):
-    """使用关键词匹配分析"""
-    try:
-        content_column = 'context_around_keyword'
-        
-        # 清理文本内容
-        df['cleaned_content'] = df[content_column].astype(str)
-        
-        # 总行数
-        total_rows = len(df)
-        
-        # 找到包含关键词的行
-        matched_rows = df[df['cleaned_content'].str.contains(keyword, na=False)]
-        matched_count = len(matched_rows)
-        
-        # 计算占比
-        percentage = (matched_count / total_rows * 100) if total_rows > 0 else 0
-        
-        # 获取前10个匹配的记录
-        sample_records = matched_rows['cleaned_content'].head(10).tolist()
-        
-        return {
-            'total_rows': total_rows,
-            'matched_count': matched_count,
-            'percentage': round(percentage, 2),
-            'sample_records': sample_records
-        }
-    except Exception as e:
-        print(f"规则应用错误: {str(e)}")
-        raise
+def apply_model_analysis(df, prompt):
+    """使用模型分析文本"""
+    total_rows = len(df)
+    matched_count = 0
+    sample_records = []
+    
+    # 使用 tqdm 创建进度条
+    with tqdm(total=total_rows, desc="处理进度", unit="行") as pbar:
+        for text in df['context_around_keyword'].astype(str):
+            result = call_model(text, prompt)
+            if result == '是':
+                matched_count += 1
+                if len(sample_records) < 10:  # 只保存前10个匹配的记录
+                    sample_records.append(text)
+            pbar.update(1)  # 更新进度条
+    
+    percentage = (matched_count / total_rows * 100) if total_rows > 0 else 0
+    
+    return {
+        'total_rows': total_rows,
+        'matched_count': matched_count,
+        'percentage': round(percentage, 2),
+        'sample_records': sample_records
+    }
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -154,27 +150,36 @@ def upload_file():
     except Exception as e:
         return jsonify({'error': f'上传过程错误: {str(e)}'}), 500
 
-def apply_model_analysis(df, prompt):
-    """使用模型分析文本"""
-    total_rows = len(df)
-    matched_count = 0
-    sample_records = []
-    
-    for text in df['context_around_keyword'].astype(str):
-        result = call_model(text, prompt)
-        if result == '是':
-            matched_count += 1
-            if len(sample_records) < 10:  # 只保存前10个匹配的记录
-                sample_records.append(text)
-    
-    percentage = (matched_count / total_rows * 100) if total_rows > 0 else 0
-    
-    return {
-        'total_rows': total_rows,
-        'matched_count': matched_count,
-        'percentage': round(percentage, 2),
-        'sample_records': sample_records
-    }
+def apply_rules(df, keyword):
+    """使用关键词匹配分析"""
+    try:
+        content_column = 'context_around_keyword'
+        
+        # 清理文本内容
+        df['cleaned_content'] = df[content_column].astype(str)
+        
+        # 总行数
+        total_rows = len(df)
+        
+        # 找到包含关键词的行
+        matched_rows = df[df['cleaned_content'].str.contains(keyword, na=False)]
+        matched_count = len(matched_rows)
+        
+        # 计算占比
+        percentage = (matched_count / total_rows * 100) if total_rows > 0 else 0
+        
+        # 获取前10个匹配的记录
+        sample_records = matched_rows['cleaned_content'].head(10).tolist()
+        
+        return {
+            'total_rows': total_rows,
+            'matched_count': matched_count,
+            'percentage': round(percentage, 2),
+            'sample_records': sample_records
+        }
+    except Exception as e:
+        print(f"规则应用错误: {str(e)}")
+        raise
 
 @app.route('/export', methods=['POST'])
 def export_results():
