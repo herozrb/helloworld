@@ -137,11 +137,16 @@
                     <label class="radio-label">
                         <input type="radio" name="analysisType" value="process"> 数据处理
                     </label>
+                    <label class="radio-label">
+                        <input type="radio" name="analysisType" value="clean"> 数据清洗
+                    </label>
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group rules-group">
                 <label for="rules">关键词/提示词规则配置:</label><br>
-                <textarea id="rules" name="rules" placeholder="关键词模式：请输入关键词，例如：诉前调查&#10;模型模式：请输入标注要求，例如：判断文本是否包含投诉内容&#10;数据处理：请输入处理规则，例如：把这一列的内容总结为三个字"></textarea>
+                <textarea id="rules" name="rules" placeholder="关键词模式：请输入关键词，例如：诉前调查
+模型模式：请输入标注要求，例如：判断文本是否包含投诉内容
+数据处理：请输入处理规则，例如：把这一列的内容总结为三个字"></textarea>
             </div>
             <button type="submit" class="button">上传并分析</button>
         </form>
@@ -149,12 +154,25 @@
     </div>
 
     <script>
+        // 添加分析方式切换时的处理函数
+        document.querySelectorAll('input[name="analysisType"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const rulesGroup = document.querySelector('.rules-group');
+                if (this.value === 'clean') {
+                    rulesGroup.style.display = 'none';  // 数据清洗模式隐藏规则输入
+                } else {
+                    rulesGroup.style.display = 'block';
+                }
+            });
+        });
+
         document.getElementById('uploadForm').onsubmit = function(e) {
             e.preventDefault();
             
             const formData = new FormData();
             const fileInput = document.getElementById('file');
             const rulesInput = document.getElementById('rules');
+            const analysisType = document.querySelector('input[name="analysisType"]:checked').value;
             const resultDiv = document.getElementById('result');
             
             if (!fileInput.files[0]) {
@@ -162,8 +180,9 @@
                 return;
             }
             
-            if (!rulesInput.value.trim()) {
-                resultDiv.innerHTML = '<div class="error">请输入关键词</div>';
+            // 只在非数据清洗模式下检查规则输入
+            if (analysisType !== 'clean' && !rulesInput.value.trim()) {
+                resultDiv.innerHTML = '<div class="error">请输入规则</div>';
                 return;
             }
             
@@ -185,7 +204,7 @@
             
             formData.append('file', fileInput.files[0]);
             formData.append('rules', rulesInput.value);
-            formData.append('analysisType', document.querySelector('input[name="analysisType"]:checked').value);
+            formData.append('analysisType', analysisType);
             
             // 使用 XMLHttpRequest 来获取上传进度
             const xhr = new XMLHttpRequest();
@@ -249,6 +268,10 @@
             xhr.open('POST', '/upload', true);
             xhr.send(formData);
         };
+
+        // 保存当前的文本和规则，用于继续处理
+        let currentText = '';
+        let rulesInput = document.getElementById('rules');
     </script>
 </body>
 </html> 

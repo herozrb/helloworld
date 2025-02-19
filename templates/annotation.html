@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>对话标注系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 20% 40% 40%;
+            gap: 20px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-height: 800px;
+            height: calc(100vh - 60px);
+        }
+        
+        .left-panel, .center-panel, .right-panel {
+            padding: 15px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .case-info {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .info-group {
+            margin-bottom: 15px;
+        }
+        
+        .info-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .info-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .info-field {
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .info-field:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .info-field.selected {
+            background-color: #e3f2fd;
+            border-color: #2196f3;
+            color: #1976d2;
+        }
+        
+        .conversation {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            width: 100%;
+            margin: 0;
+            background-color: white;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            user-select: none;
+        }
+        
+        .message-container {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        
+        .conversation::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .conversation::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .conversation::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        .conversation::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        .message {
+            margin-bottom: 12px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1.5;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+        
+        .message:hover {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .message.selected {
+            border-color: #007bff;
+            background-color: rgba(0, 123, 255, 0.05);
+        }
+        
+        .agent {
+            background-color: #f0f0f0;
+        }
+        
+        .agent.selected {
+            background-color: #e0e0e0;
+        }
+        
+        .customer {
+            background-color: #e8f4ff;
+        }
+        
+        .customer.selected {
+            background-color: #d8eaff;
+        }
+        
+        .annotation-panel {
+            padding: 15px;
+        }
+        
+        .annotation-panel h3 {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 12px;
+        }
+        
+        .form-control {
+            width: 80%;
+            padding: 4px 8px;
+            height: 30px;
+            font-size: 13px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .form-control:focus {
+            background-color: #f8f9fa;
+            outline: none;
+            border-color: #80bdff;
+            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        }
+        
+        .form-control::placeholder {
+            color: #6c757d;
+        }
+        
+        .btn-group .btn {
+            padding: 4px 8px;
+            font-size: 13px;
+        }
+        
+        .option-group {
+            margin-bottom: 12px;
+        }
+        
+        .option-group label {
+            font-size: 13px;
+        }
+        
+        .tag-group {
+            margin-top: 4px;
+        }
+        
+        .btn-add {
+            width: 24px;
+            height: 24px;
+            font-size: 16px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        
+        button:hover {
+            background-color: #f0f0f0;
+        }
+        
+        button.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+        
+        .score-input {
+            width: 40px;
+            padding: 4px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 13px;
+        }
+        
+        .save-btn {
+            background-color: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            float: right;
+        }
+        
+        .save-btn:hover {
+            background-color: #218838;
+        }
+        
+        .edit-btn {
+            color: blue;
+            text-decoration: underline;
+            cursor: pointer;
+            border: none;
+            background: none;
+            padding: 0;
+        }
+
+        .call-record {
+            cursor: pointer;
+            padding: 8px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .call-record:hover {
+            background-color: #e9ecef;
+        }
+
+        .call-record.active {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .generate-btn {
+            background-color: #6c757d;
+            color: white;
+            padding: 6px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .generate-btn:hover {
+            background-color: #5a6268;
+            transform: translateY(-1px);
+        }
+        
+        .generate-btn:active {
+            transform: translateY(0);
+        }
+        
+        .button-container {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .save-btn-container {
+            margin-top: auto;
+            padding-top: 20px;
+        }
+
+        .center-panel {
+            border-left: 1px solid #eee;
+            border-right: 1px solid #eee;
+        }
+
+        .selection-area {
+            background: rgba(46, 115, 252, 0.11);
+            border: 2px solid rgba(98, 155, 255, 0.81);
+            border-radius: 0.1em;
+            position: fixed;
+            z-index: 99999;
+        }
+
+        /* 添加标注区域的样式 */
+        .label-row {
+            display: grid;
+            grid-template-columns: 120px 1fr;  /* 标签名固定宽度 */
+            align-items: center;
+            margin-bottom: 12px;
+            gap: 10px;
+        }
+
+        .label-name {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .label-content {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            min-height: 24px;
+        }
+
+        .score-row {
+            display: grid;
+            grid-template-columns: 120px 60px;  /* 标签名固定宽度，分数输入框固定宽度 */
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+
+        .score-input {
+            width: 50px;
+            text-align: right;
+            padding: 4px 8px;
+        }
+
+        /* 调整按钮样式 */
+        .tag-button {
+            padding: 4px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .tag-button:hover {
+            background-color: #f0f0f0;
+        }
+
+        .tag-button.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+
+        .add-button {
+            padding: 2px 8px;
+            color: #666;
+            font-size: 16px;
+        }
+
+        /* 添加顶部导航栏样式 */
+        .navbar {
+            background-color: #fff;
+            padding: 10px 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .navbar-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .navbar-user {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .progress-info {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: #007bff;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        /* 调整原有容器样式 */
+        .page-container {
+            padding: 0 20px 20px 20px;
+        }
+
+        /* 高级标注区域样式优化 */
+        .thought-chain-section {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .thought-chain-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .thought-chain-textarea {
+            width: 95%;
+            min-height: 100px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: vertical;
+            margin-bottom: 10px;
+        }
+
+        .thought-chain-controls {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        /* 选择框样式 */
+        .option-container {
+            margin-top: 10px;
+            display: none; /* 默认隐藏 */
+            gap: 10px;
+        }
+
+        .option-button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background-color 0.2s;
+        }
+
+        .option-button:hover {
+            background-color: #f0f0f0;
+        }
+
+        .option-button.selected {
+            background-color: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+
+        /* 新增标签的输入框样式 */
+        .new-tag-input {
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-right: 8px;
+        }
+
+        .remove-tag {
+            color: red;
+            cursor: pointer;
+            margin-left: 5px;
+            display: none; /* 默认隐藏 */
+        }
+
+        .tag-button:hover .remove-tag {
+            display: inline; /* 悬停时显示 */
+        }
+
+        /* 修改原因输入框样式 */
+        .reason-input {
+            width: 100%;
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.2;
+            height: 24px;
+        }
+
+        /* 修改基本沟通行的样式 */
+        .basic-communication-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+
+        .communication-item {
+            display: grid;
+            grid-template-columns: 120px 60px auto;  /* 与 label-row 保持一致的宽度 */
+            align-items: center;
+            gap: 8px;
+        }
+
+        .communication-label {
+            font-size: 14px;
+            color: #666;
+            white-space: nowrap;
+            text-align: left;  /* 改为左对齐 */
+        }
+
+        .score-input {
+            width: 50px;
+            text-align: center;
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            justify-self: start;  /* 输入框左对齐 */
+        }
+
+        /* 添加评分单选按钮组的样式 */
+        .score-radio-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .score-radio-label {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .score-radio-label:hover {
+            background-color: #f0f0f0;
+        }
+
+        .score-radio-input {
+            display: none;
+        }
+
+        .score-radio-input:checked + .score-radio-label {
+            background-color: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+
+        .annotation-section {
+            margin: 0;
+            padding: 0;
+            border: none;
+            border-radius: 0;
+        }
+
+        .btn-group {
+            margin-top: 5px;
+        }
+
+        .btn-outline-primary.active {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .btn-group .btn {
+            margin-right: 5px;
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        /* 添加新的样式 */
+        .dual-options-row {
+            display: flex;
+            gap: 30px;  /* 增加两组选项之间的间距 */
+            margin-bottom: 15px;
+            align-items: center;  /* 确保垂直居中对齐 */
+        }
+
+        .option-group {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .option-group label {
+            margin-bottom: 0;  /* 移除底部边距 */
+            white-space: nowrap;  /* 防止文字换行 */
+            flex-shrink: 0;  /* 防止文字被压缩 */
+        }
+
+        .btn-group {
+            margin-top: 0;  /* 移除顶部边距 */
+            display: inline-flex;  /* 使按钮保持在一行 */
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .tag-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-add {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #fff;
+            color: #666;
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .btn-add:hover {
+            background: #f0f0f0;
+        }
+
+        .btn-group .btn {
+            padding: 6px 12px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .btn-group .btn.active {
+            background: #007bff;
+            color: #fff;
+            border-color: #0056b3;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: relative;
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 0;
+            width: 600px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .modal-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h4 {
+            margin: 0;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .close {
+            font-size: 20px;
+            font-weight: bold;
+            color: #666;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .tag-select-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .tag-option {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            background: #fff;
+            transition: all 0.2s;
+        }
+
+        .tag-option:hover {
+            background: #f0f0f0;
+        }
+
+        .tag-option.selected {
+            background: #007bff;
+            color: #fff;
+            border-color: #0056b3;
+        }
+
+        .modal-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn-cancel {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f8f9fa;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .btn-confirm {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .btn-confirm:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <!-- 添加导航栏 -->
+    <div class="navbar">
+        <div class="navbar-title">
+            专家知识库 标注系统
+        </div>
+        <div class="navbar-user">
+            <div class="progress-info">
+                今日任务进度：<span style="color: #007bff; font-weight: bold;">200/1000</span>
+            </div>
+            <div class="user-info">
+                <div class="user-avatar">张</div>
+                <span>张专家</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 将原有内容包裹在新容器中 -->
+    <div class="page-container">
+        <div class="container">
+            <!-- 左侧面板 -->
+            <div class="left-panel">
+                <div class="case-info">
+                    <div class="info-group">
+                        <div class="info-title">案件属性</div>
+                        <div class="info-content">
+                            <div class="info-field">逾期天数</div>
+                            <div class="info-field">账单日期</div>
+                            <div class="info-field">通话时长</div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-group">
+                        <div class="info-title">用户属性</div>
+                        <div class="info-content">
+                            <div class="info-field">性别</div>
+                            <div class="info-field">年龄</div>
+                            <div class="info-field">三方联系人</div>
+                            <div class="info-field">职业</div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-group">
+                        <div class="info-title">通话记录</div>
+                        <div class="info-content" style="display: block;">
+                            <div class="call-record" onclick="selectCall(this)">
+                                2025-09-02第一通电话：张兴
+                            </div>
+                            <div class="call-record" onclick="selectCall(this)">
+                                2025-09-03第二通电话：张兴
+                            </div>
+                            <div class="call-record" onclick="selectCall(this)">
+                                2025-09-03第三通电话：周已
+                            </div>
+                            <div class="call-record" onclick="selectCall(this)">
+                                2025-09-04第一通电话：张兴
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中间面板 -->
+            <div class="center-panel">
+                <div class="conversation">
+                    <div class="message agent">
+                        <strong>坐席:</strong> 喂。
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 喂。
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 喂你好。
+                    </div>
+                    <div class="message agent">
+                        <strong>坐席:</strong> 你好，这边是林林子旭是吧？
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 对。
+                    </div>
+                    <div class="message agent">
+                        <strong>坐席:</strong> 哦，我这边是美团金融贷后诉前调查中心的，我的工号DX一三零三零六四九，关于您本人在美团金融申请的一个欠款先做一下通知，截止目前总欠款八千三百七十六块一毛九，经催缴部门提醒，三次以上仍未还款，我司，我司后续将以借款合同纠纷为案向重庆市沙坪坝区人民法院提起民事诉讼，这个执行法院是借款协议的约定，法院我们的通话全程都有录音，可能会作为后续走诉讼流程的一个材料取证，我找你核实一下。
+                    </div>
+                    <div class="message agent">
+                        <strong>坐席:</strong> 你在美团？
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 嗯，现在是现在是没有分期，是直接是八千多少来着？
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 一次还清是吧？
+                    </div>
+                    <div class="message agent">
+                        <strong>坐席:</strong> 不，我看当前我看当前还是一个八百多块钱呢。
+                    </div>
+                    <div class="message agent">
+                        <strong>坐席:</strong> 我看你这个账户的话，当前还是一个八百六十九块七毛三这个款项，如果你这个款项都不愿意处理的话，那后续根据我们是吧，我走到后期诉讼流程的话，肯定是会就像你这个剩余全款，而且这边全款的话已经超出了规定范围五千以内，好，我跟你核实一下，我通知一下，以及公司公司这边即将筛选一批风险系数比较高的客户走一个司法诉讼，和这个相关的判决文书可能会上传至中国裁判文书网，你这边也可以自行百度搜索一下中国裁判文书网，查询一下重庆美团三快小贷款公司的相关起诉案例，跟您核一下您当时在美团金融办理的生活费借钱是否您本人自愿办理。
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 嗯。
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 好的知道了。
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 是啊。
+                    </div>
+                    <div class="message agent">
+                        <strong>坐席:</strong> 是那所借款项有没有用于赌博非法集资或者是以贷养贷这些行为？
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 没有没有。
+                    </div>
+                    <div class="message agent">
+                        <strong>坐席:</strong> 好你家里人是否知道你逾期的情况？
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 家里不知道。
+                    </div>
+                    <div class="message agent">
+                        <strong>坐席:</strong> 家里不知道是吧？那我看你这个预留紧急联系人有你的姑父还有父亲姐姐还有母亲这些紧急联系人都是不知道你这个美团金融欠款逾期的情况是吧？
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 对。
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 对。我这两天在想办法呢。
+                    </div>
+                    <div class="message agent">
+                        <strong>坐席:</strong> 好。
+                    </div>
+                    <div class="message agent">
+                        <strong>坐席:</strong> 好你目前有没有结婚？
+                    </div>
+                    <div class="message agent">
+                        <strong>坐席:</strong> 如果我们的核实过程。
+                    </div>
+                    <div class="message customer">
+                        <strong>客户:</strong> 就
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧面板 -->
+            <div class="right-panel">
+                <div class="annotation-panel">
+                    <div class="annotation-section">
+                        <h3>对话标注</h3>
+                        
+                        <!-- 1和2放在同一行 -->
+                        <div class="dual-options-row">
+                            <!-- 1. 是否优秀催员对话 -->
+                            <div class="option-group">
+                                <label>是否优秀催员对话：</label>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-primary" data-value="是">是</button>
+                                    <button type="button" class="btn btn-outline-primary" data-value="否">否</button>
+                                </div>
+                            </div>
+
+                            <!-- 2. 还款意愿 -->
+                            <div class="option-group">
+                                <label>还款意愿：</label>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-primary" data-value="高">高</button>
+                                    <button type="button" class="btn btn-outline-primary" data-value="低">低</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. 判断依据1 -->
+                        <div class="form-group">
+                            <label>判断依据：</label>
+                            <input type="text" class="form-control" placeholder="请输入你的判断依据和解读">
+                        </div>
+
+                        <!-- 4. 用户软肋 -->
+                        <div class="form-group">
+                            <label>用户在意点：</label>
+                            <div class="tag-group">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-primary" data-value="恐惧法律后果">恐惧法律后果</button>
+                                    <button type="button" class="btn btn-outline-primary" data-value="重视个人信用记录">重视个人信用记录</button>
+                                </div>
+                                <button type="button" class="btn btn-add">+</button>
+                            </div>
+                        </div>
+
+                        <!-- 5. 判断依据2 -->
+                        <div class="form-group">
+                            <label>判断依据：</label>
+                            <input type="text" class="form-control" placeholder="请输入你的判断依据和解读">
+                        </div>
+
+                        <!-- 6. 话术策略 -->
+                        <div class="form-group">
+                            <label>话术策略：</label>
+                            <div class="tag-group">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-primary" data-value="询问未还款原因">询问未还款原因</button>
+                                    <button type="button" class="btn btn-outline-primary" data-value="限定时间">限定时间</button>
+                                </div>
+                                <button type="button" class="btn btn-add">+</button>
+                            </div>
+                        </div>
+
+                        <!-- 7. 判断依据3 -->
+                        <div class="form-group">
+                            <label>判断依据：</label>
+                            <input type="text" class="form-control" placeholder="请输入你的判断依据和解读">
+                        </div>
+                    </div>
+
+                    <div class="annotation-section">
+                        <div class="annotation-title">思维标注</div>
+                        <div class="thought-chain-section">
+                            <div class="thought-chain-title">思维链分析</div>
+                            <textarea 
+                                class="thought-chain-textarea" 
+                                placeholder="请输入或生成思维链分析..."
+                            ></textarea>
+                            <div class="thought-chain-controls">
+                                <button class="generate-btn" onclick="generateThoughtChain()">
+                                    <i class="fas fa-magic"></i> 生成思维链
+                                </button>
+                            </div>
+                            <div class="option-container" id="optionContainer">
+                                <div class="option-title">请选择生成的思维链:</div>
+                                <button class="option-button" onclick="selectOption(this)">思维链选项 1</button>
+                                <button class="option-button" onclick="selectOption(this)">思维链选项 2</button>
+                                <button class="option-button" onclick="selectOption(this)">思维链选项 3</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="save-btn-container">
+                        <button class="save-btn">保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 在body末尾添加弹窗HTML -->
+    <div id="tagSelectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4>用户在意点</h4>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="tag-select-container">
+                    <!-- 标签将通过JavaScript动态添加 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel">取消</button>
+                <button class="btn-confirm">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // 首先定义所有常量和函数
+    const tagOptions = [
+        "担心个人隐私泄露", "害怕工作受影响", "在意家庭声誉受损", "不想熟人知晓债务",
+        "恐惧法律后果", "对持续催收感到厌烦", "无法承担一次性还款压力", "重视个人信用记录",
+        "担心信用污点影响未来", "害怕被认定恶意欠款", "担忧合同违约后果",
+        "对调查带来的麻烦感到不安", "资金紧张难以按时还款", "对欠款原因难以自圆其说",
+        "不想因无法还款被质疑", "害怕被指责故意不还款", "对频繁联系感到困扰",
+        "对政策变动感到不安", "担心被机器人或短信频繁催收"
+    ];
+
+    // 初始化弹窗
+    function initializeTagModal() {
+        const modal = document.getElementById('tagSelectModal');
+        if (!modal) return; // 添加检查
+
+        const tagContainer = modal.querySelector('.tag-select-container');
+        if (!tagContainer) return; // 添加检查
+        
+        // 清空现有内容
+        tagContainer.innerHTML = '';
+        
+        // 添加标签选项
+        tagOptions.forEach(tag => {
+            const tagElement = document.createElement('div');
+            tagElement.className = 'tag-option';
+            tagElement.textContent = tag;
+            tagElement.onclick = () => tagElement.classList.toggle('selected');
+            tagContainer.appendChild(tagElement);
+        });
+        
+        // 关闭按钮事件
+        const closeBtn = modal.querySelector('.close');
+        if (closeBtn) {
+            closeBtn.onclick = () => modal.style.display = 'none';
+        }
+        
+        // 取消按钮事件
+        const cancelBtn = modal.querySelector('.btn-cancel');
+        if (cancelBtn) {
+            cancelBtn.onclick = () => modal.style.display = 'none';
+        }
+        
+        // 添加按钮事件
+        const confirmBtn = modal.querySelector('.btn-confirm');
+        if (confirmBtn) {
+            confirmBtn.onclick = () => {
+                const selectedTags = Array.from(modal.querySelectorAll('.tag-option.selected'))
+                    .map(tag => tag.textContent);
+                addSelectedTags(selectedTags);
+                modal.style.display = 'none';
+            };
+        }
+    }
+
+    // 添加选中的标签
+    function addSelectedTags(tags) {
+        const btnGroup = document.querySelector('.form-group:nth-of-type(4) .btn-group');
+        if (!btnGroup) return; // 添加检查
+
+        tags.forEach(tag => {
+            const existingTags = Array.from(btnGroup.querySelectorAll('.btn'))
+                .map(btn => btn.textContent);
+            if (!existingTags.includes(tag)) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-outline-primary';
+                button.setAttribute('data-value', tag);
+                button.textContent = tag;
+                button.onclick = function() {
+                    this.classList.toggle('active');
+                };
+                btnGroup.appendChild(button);
+            }
+        });
+    }
+
+    // 修改初始化所有功能的函数
+    function initializeAll() {
+        // 初始化消息选择
+        const messages = document.querySelectorAll('.message');
+        messages.forEach(message => {
+            message.addEventListener('click', function() {
+                message.classList.toggle('selected');
+            });
+        });
+
+        // 初始化按钮组
+        const buttons = document.querySelectorAll('.btn-group .btn');
+        buttons.forEach(button => {
+            button.addEventListener('click', function() {
+                if (this.parentElement.querySelectorAll('.btn').length === 2) {
+                    this.parentElement.querySelectorAll('.btn').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                } else {
+                    this.classList.toggle('active');
+                }
+            });
+        });
+
+        // 初始化标签弹窗
+        initializeTagModal();
+
+        // 初始化所有加号按钮点击事件
+        const addButtons = document.querySelectorAll('.btn-add');
+        addButtons.forEach(btn => {
+            btn.onclick = function() {
+                const modal = document.getElementById('tagSelectModal');
+                if (modal) {
+                    modal.style.display = 'block';
+                    // 重置已选状态
+                    modal.querySelectorAll('.tag-option').forEach(tag => {
+                        tag.classList.remove('selected');
+                    });
+                }
+            };
+        });
+
+        // 初始化模态框关闭事件
+        const modal = document.getElementById('tagSelectModal');
+        if (modal) {
+            // 点击模态框外部关闭
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            };
+
+            // ESC键关闭
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape' && modal.style.display === 'block') {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+
+        // 初始化保存按钮
+        const saveBtn = document.querySelector('#saveAnnotation');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function() {
+                const results = getAnnotationResults();
+                console.log('标注结果：', results);
+            });
+        }
+    }
+
+    // 确保在DOM加载完成后初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeAll();
+        initializeTagModal();
+    });
+
+    function initializeMessageSelection() {
+        const messages = document.querySelectorAll('.message');
+
+        messages.forEach(message => {
+            message.addEventListener('click', function() {
+                message.classList.toggle('selected');
+                
+                // 获取当前激活的文本框
+                const activeTextarea = document.activeElement;
+                if (activeTextarea && activeTextarea.classList.contains('reason-textarea')) {
+                    const messageContent = message.textContent.replace(/坐席:|客户:/, '').trim();
+                    // 在光标位置插入文本
+                    const cursorPos = activeTextarea.selectionStart;
+                    const textBefore = activeTextarea.value.substring(0, cursorPos);
+                    const textAfter = activeTextarea.value.substring(cursorPos);
+                    activeTextarea.value = textBefore + messageContent + textAfter;
+                }
+            });
+        });
+    }
+
+    function selectCall(element) {
+        document.querySelectorAll('.call-record').forEach(record => {
+            record.classList.remove('active');
+        });
+        element.classList.add('active');
+    }
+
+    function generateThoughtChain() {
+        // 模拟生成思维链的内容
+        const options = [
+            "思维链选项 1: 用户拒绝了沟通，应该是没钱。",
+            "思维链选项 2: 用户提到他可以和朋友周转。",
+            "思维链选项 3: 用户希望继续施压。"
+        ];
+
+        // 显示选项
+        const optionContainer = document.getElementById('optionContainer');
+        optionContainer.style.display = 'flex';
+
+        // 更新选项内容
+        const buttons = optionContainer.querySelectorAll('.option-button');
+        buttons.forEach((button, index) => {
+            button.textContent = options[index];
+            button.dataset.content = options[index];  // 将内容存储在数据属性中
+        });
+    }
+
+    function selectOption(button) {
+        // 清除其他选项的选中状态
+        const buttons = document.querySelectorAll('.option-button');
+        buttons.forEach(btn => btn.classList.remove('selected'));
+
+        // 设置当前选项为选中状态
+        button.classList.add('selected');
+
+        // 获取选中的思维链内容并显示在文本框中
+        const thoughtChainTextarea = document.querySelector('.thought-chain-textarea');
+        thoughtChainTextarea.value = button.dataset.content;  // 从数据属性中获取内容
+
+        // 这里可以添加选中后的逻辑
+        console.log(`已选择: ${button.textContent}`);
+    }
+
+    function getAnnotationResults() {
+        const results = {
+            is_excellent: document.querySelector('[data-value="是"].active') ? '是' : '否',
+            repayment_willingness: document.querySelector('[data-value="高"].active') ? '高' : '低',
+            reasoning1: document.querySelector('textarea:nth-of-type(1)').value,
+            user_weakness: Array.from(document.querySelectorAll('.form-group:nth-of-type(4) .btn.active'))
+                .map(btn => btn.dataset.value).join(', '),
+            reasoning2: document.querySelector('textarea:nth-of-type(2)').value,
+            conversation_strategy: Array.from(document.querySelectorAll('.form-group:nth-of-type(6) .btn.active'))
+                .map(btn => btn.dataset.value).join(', '),
+            reasoning3: document.querySelector('textarea:nth-of-type(3)').value
+        };
+        return results;
+    }
+
+    function handleModelTimeout(response) {
+        if (response.status === 'timeout') {
+            const continueProcessing = confirm(`${response.message}\n当前时间: ${response.current_time}`);
+            if (continueProcessing) {
+                // 继续处理
+                fetch('/confirm_continue', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        continue: true,
+                        text: currentText,
+                        rules: currentRules
+                    })
+                })
+                .then(response => response.json())
+                .then(handleResponse)
+                .catch(handleError);
+            } else {
+                // 导出当前结果
+                fetch('/confirm_continue', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        continue: false
+                    })
+                })
+                .then(response => response.json())
+                .then(handleExport)
+                .catch(handleError);
+            }
+        }
+    }
+
+    function handleExport(response) {
+        if (response.status === 'exported') {
+            alert(response.message);
+            // 下载导出的文件
+            window.location.href = `/download/${response.file}`;
+        } else {
+            alert('导出失败：' + response.error);
+        }
+    }
+    </script>
+</body>
+</html> 
